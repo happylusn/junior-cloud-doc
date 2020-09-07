@@ -7,6 +7,8 @@ const QiniuManager = require('./src/utils/QiniuManager')
 const settingsStore = new Store({ name: 'Settings'})
 const fileStore = new Store({name: 'Files Data'})
 const isDev = require('electron-is-dev')
+const { autoUpdater } = require('electron-updater')
+const { setImmediate } = require('timers')
 let mainWindow, settingsWindow
 
 const createManager = () => {
@@ -16,12 +18,54 @@ const createManager = () => {
   return new QiniuManager(accessKey, secretKey, bucketName)
 }
 app.on('ready', () => {
+  autoUpdater.autoDownload = false
+  if (isDev) {
+    autoUpdater.updateConfigPath = path.join(__dirname, 'dev-app-update.yml')
+    autoUpdater.checkForUpdates()
+  } else {
+    autoUpdater.checkForUpdatesAndNotify()
+  }
+  autoUpdater.on('error', (error) => {
+    dialog.showErrorBox('Error:', error == null ? 'unknown' : error.message)
+  })
+  autoUpdater.on('checking-for-update', () => {
+    console.log('Checking for update...')
+  })
+  autoUpdater.on('update-available', () => {
+    dialog.showMessageBox({
+      type: 'info',
+      title: '应用有新版本',
+      message: '发现新版本，是否现在更新？',
+      buttons: ['是', '否']
+    }).then(buttonIndex => {
+      if (buttonIndex === 0) {
+        autoUpdater.downloadUpdate()
+      }
+    })
+  })
+  autoUpdater.on('download-progress', (progress, bytesPerSecond, percent, total, transferred) => {
+    console.log(progress, bytesPerSecond, percent, total, transferred)
+  })
+  autoUpdater.on('update-downloaded', () => {
+    dialog.showMessageBox({
+      title: '安装更新',
+      message: '更新下载完毕，应用将重启并进行安装'
+    }).then(() => {
+      setImmediate(() => autoUpdater.quitAndInstall())
+    })
+  })
+  autoUpdater.on('update-not-available', () => {
+    dialog.showMessageBox({
+      title: '没有新版本',
+      message: '当前已是最新版本'
+    })
+  })
   const mainWindowConfig = {
     width: 1024,
     height: 680
   }
   // console.log(isDev)
-  const urlLocation = isDev ? "http://localhost:3000" : 'sss'
+  const urlLocation = isDev ? "http://localhost:3000" : `file://${path.join(__dirname, './index.html')}`
   mainWindow = new AppWindow(mainWindowConfig, urlLocation)
   mainWindow.on('closed', () => {
     mainWindow = null
@@ -37,7 +81,7 @@ app.on('ready', () => {
       height: 400,
       parent: mainWindow  
     }
-    const settingsFileLocation = `file://${path.resolve(__dirname, './settings/settings.html')}`
+    const settingsFileLocation = `file://${path.resolve(__dirname, '../settings/settings.html')}`
     settingsWindow = new AppWindow(settingsWindowConfig, settingsFileLocation)
     settingsWindow.removeMenu()
     settingsWindow.on('closed', () => {

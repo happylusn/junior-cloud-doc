@@ -13,7 +13,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // if (saveLocation) {
   //   $('#savedFileLocation').value = saveLocation
   // }
-  console.log(settingsStore.get('savedFileLocation111'))
   qiniuConfigArr.forEach(selector => {
     const savedValue = settingsStore.get(selector.substr(1))
     if (savedValue) {
